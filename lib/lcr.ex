@@ -2,46 +2,60 @@ defmodule LCR do
   @moduledoc """
   Lelann, Chang-Roberts algorithm.
   """
-  alias LCR.Supervisor, as: LCRSup
+  use GenServer
+  alias Ring.Supervisor, as: RingSup
+  alias Ring.Counter
 
-  def start(node_num) do
-    {:ok, sup} = LCRSup.start_link()
-    for x <- 1..node_num do
-      Supervisor.start_child(sup, [x])
+  def child_spec(n) do
+    %{
+      id: {__MODULE__, n},
+      start: {__MODULE__, :start_link, [n]},
+      type: :worker,
+    }
+  end
+
+  def start_link(_, n) do
+    GenServer.start_link __MODULE__, n, []
+  end
+
+  def init(n) do
+    state = %{ring: nil, own: n, send: n, status: :unknown}
+    {:ok, state}
+  end
+
+  def handle_info({:ring, ring}, state) do
+    new_ring = Ring.fit_ring(ring, self())
+    {:noreply, %{state|ring: new_ring}}
+  end
+
+  def handle_info(:round_go, state) do
+    if state.send do
+      send Ring.next_node(state.ring), {:msg, state.send}
     end
-
-    sup
-    |> get_ring()
-    |> update_node_ring()
-    |> start_leader_election()
+    {:noreply, state}
   end
 
-  defp get_ring(sup) do
-    sup
-    |> Supervisor.which_children()
-    |> Enum.map(fn {_, pid, _, _} -> pid end)
+  def handle_info({:msg, m}, state) do
+    Counter.add_one()
+    new_state = handle(m, state)
+    {:noreply, new_state}
   end
 
-  defp update_node_ring(ring) do
-    Enum.each(ring, fn pid ->
-      send pid, {:ring, ring}
-    end)
-    IO.inspect ring
+  defp handle(m, state) do
+    state
+    |> Map.put(:send, nil)
+    |> status_change()
+    |> compare_own_with_m(m)
   end
 
-  defp start_leader_election(ring) do
-    spawn_link(&print_round/0)
-    :timer.sleep 100
-    Enum.each(ring, fn pid ->
-      :timer.send_interval 1000, pid, :round_go
-    end)
+  defp status_change(%{status: :chosen}=s) do
+    Counter.report()
+    IO.puts "Node.#{s.own} has been chosen as leader."
+    %{s|status: :reported}
   end
+  defp status_change(s), do: s
 
-  defp print_round do
-    for x <- 1..100 do
-      :timer.sleep 1000
-      IO.puts "round #{x}"
-    end
-  end
-
+  defp compare_own_with_m(%{own: own}=s, m) when m > own, do: %{s|send: m}
+  defp compare_own_with_m(%{own: m}=s, m), do: %{s|status: :chosen, send: nil}
+  defp compare_own_with_m(s, _), do: s
 end

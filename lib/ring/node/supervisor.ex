@@ -1,7 +1,5 @@
-defmodule Ring.Supervisor do
+defmodule Ring.Node.Supervisor do
   use Supervisor
-  alias Ring.Node.Supervisor, as: NodeSup
-  alias Ring.Manager
   
   def start_link(node_mod) do
     Supervisor.start_link(__MODULE__, node_mod, name: __MODULE__)
@@ -9,9 +7,8 @@ defmodule Ring.Supervisor do
 
   def init(node_mod) do
     Supervisor.init([
-      {NodeSup, node_mod},
-      Manager,
-    ], strategy: :one_for_one)
+      node_mod,
+    ], strategy: :simple_one_for_one)
   end
 
 end

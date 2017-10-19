@@ -18,7 +18,7 @@ defmodule Ring.Counter do
   end
 
   def report do
-    send Ring, :done
+    send Ring.Manager, :done
     n = Agent.get __MODULE__, fn x -> x end
     IO.puts "#{n} messages have been Communicated."    
     Supervisor.stop Ring.Supervisor

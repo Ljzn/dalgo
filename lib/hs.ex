@@ -2,60 +2,69 @@ defmodule HS do
   @moduledoc """
   Hirshberg Sinclair algorithm.
   """
-  use GenServer
-  alias Ring.Supervisor, as: RingSup
-  alias Ring.Counter
+  use Ring.Algo
 
-  def child_spec(n) do
-    %{
-      id: {__MODULE__, n},
-      start: {__MODULE__, :start_link, [n]},
-      type: :worker,
-    }
+  ## -----------------------------------------------------------------
+  ## START
+  ## -----------------------------------------------------------------
+
+  start n do
+    %{ring: nil, own: n, phase: 0, status: :unknown}
   end
 
-  def start_link(_, n) do
-    GenServer.start_link __MODULE__, n, []
-  end
+  ## -----------------------------------------------------------------
+  ## MSGS
+  ## -----------------------------------------------------------------
 
-  def init(n) do
-    state = %{ring: nil, own: n, phase: 0, status: :unknown}
-    {:ok, state}
-  end
-
-  def handle_info({:ring, ring}, state) do
-    new_ring = Ring.fit_ring(ring, self())
-    {:noreply, %{state|ring: new_ring}}
-  end
-
-  def handle_info(:round_go, %{status: :chosen}=s) do
+  msgs %{status: :chosen}=s do
     IO.puts "Node.#{s.own} has been chosen as leader."
     Counter.report()
-    {:noreply, s}
+    s
   end
-  def handle_info(:round_go, %{status: :defeated}=s) do
-    {:noreply, s}
+
+
+  msgs %{status: :defeated}=s do
+    s
   end
-  def handle_info(:round_go, %{status: :unknown}=s) do
+
+
+  msgs %{status: :unknown}=s do
     distance = trunc(:math.pow(2, s.phase))
       send Ring.next_node(s.ring), {:next, s.own, self(), distance}
       send Ring.prev_node(s.ring), {:prev, s.own, self(), distance}
-    {:noreply, %{s|phase: s.phase + 1}}
+    %{s|phase: s.phase + 1}
   end
 
-  def handle_info({direction, _, _, _}=msg, s) when direction in [:next, :prev] do
-    Counter.add_one()
-    new_state = compare(s, msg)
-    {:noreply, new_state}
-  end
 
-  def handle_info(:stop, s) do
-    {:noreply, %{s|status: :defeated}}
-  end
+  ## -----------------------------------------------------------------
+  ## TRANS
+  ## -----------------------------------------------------------------
 
-  def handle_info(:ok, s) do
-    {:noreply, s}
-  end
+  trans [
+    msg: {_, _, _, _}=msg,
+    state: s, 
+    do: (
+      Counter.add_one()
+      compare(s, msg)
+    )
+  ]
+
+  trans [
+    msg: :stop,
+    state: s,
+    do: %{s|status: :defeated}
+  ]
+
+  trans [
+    msg: :ok,
+    state: s,
+    do: s
+  ]
+
+
+  ## -----------------------------------------------------------------
+  ## private functions
+  ## -----------------------------------------------------------------
 
   defp compare(%{own: own}=s, {_d, v, pid, 0}) when v > own do
     send pid, :ok

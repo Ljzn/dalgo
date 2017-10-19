@@ -39,17 +39,16 @@ defmodule Ring.Manager do
 
   def handle_info(:new_round, %{ring: ring, round: round}) do
     new_round = round + 1
-    IO.puts "[ROUND] #{new_round}"
     for node <- ring do
-      send node, :round_go
+      send node, {:round_go, new_round}
     end
-    Process.send_after self(), :new_round, 500
+    Process.send_after self(), :new_round, 0
 
     {:noreply, %{ring: ring, round: new_round}}
   end
 
-  def handle_info(:done, _) do
-    Supervisor.stop(Ring.Supervisor)
+  def handle_info(:done, %{round: round}) do
+    IO.puts "[ROUND] #{round}"
     {:noreply, :done}
   end
 

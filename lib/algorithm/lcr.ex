@@ -2,48 +2,47 @@ defmodule LCR do
   @moduledoc """
   Lelann, Chang-Roberts algorithm.
   """
-  use GenServer
-  alias Ring.Supervisor, as: RingSup
-  alias Ring.Counter
+  use Ring.Algo
 
-  def child_spec(n) do
-    %{
-      id: {__MODULE__, n},
-      start: {__MODULE__, :start_link, [n]},
-      type: :worker,
-    }
+  ## -----------------------------------------------------------------
+  ## START
+  ## -----------------------------------------------------------------
+
+  start n do
+    %{ring: nil, own: n, send: n, status: :unknown}
   end
 
-  def start_link(_, n) do
-    GenServer.start_link __MODULE__, n, []
+  ## -----------------------------------------------------------------
+  ## MSGS
+  ## -----------------------------------------------------------------
+
+  msgs %{send: nil} do
+    nil
   end
 
-  def init(n) do
-    state = %{ring: nil, own: n, send: n, status: :unknown}
-    {:ok, state}
-  end
-
-  def handle_info({:ring, ring}, state) do
-    new_ring = Ring.fit_ring(ring, self())
-    {:noreply, %{state|ring: new_ring}}
-  end
-
-  def handle_info(:round_go, state) do
-    if state.send do
-      send Ring.next_node(state.ring), {:msg, state.send}
-    end
-    {:noreply, state}
-  end
-
-  def handle_info({:msg, m}, state) do
+  msgs %{send: send, ring: ring} do
+    send Ring.next_node(ring), {:msg, send}
     Counter.add_one()
-    new_state = handle(m, state)
-    {:noreply, new_state}
   end
+
+  ## -----------------------------------------------------------------
+  ## TRANS
+  ## -----------------------------------------------------------------
+
+  trans [
+    msg: {:msg, m},
+    state: s,
+    do: (
+      handle(m, s)
+    )
+  ]
+
+  ## -----------------------------------------------------------------
+  ## private functions
+  ## -----------------------------------------------------------------
 
   defp handle(m, state) do
     state
-    |> Map.put(:send, nil)
     |> status_change()
     |> compare_own_with_m(m)
   end

@@ -9,30 +9,41 @@ defmodule HS do
   ## -----------------------------------------------------------------
 
   start n do
-    %{ring: nil, own: n, phase: 0, status: :unknown}
+    %{ring: nil, own: n, status: :idle, send: [], phase: 0}
   end
 
   ## -----------------------------------------------------------------
   ## MSGS
   ## -----------------------------------------------------------------
 
-  msgs %{status: :chosen}=s do
-    IO.puts "Node.#{s.own} has been chosen as leader."
+  msgs %{status: :chosen, own: own} do
+    IO.puts "Node.#{own} has been chosen as leader."
     Counter.report()
-    s
   end
 
 
-  msgs %{status: :defeated}=s do
-    s
+  msgs %{status: :defeated} do
+    nil
   end
 
 
-  msgs %{status: :unknown}=s do
-    distance = trunc(:math.pow(2, s.phase))
-      send Ring.next_node(s.ring), {:next, s.own, self(), distance}
-      send Ring.prev_node(s.ring), {:prev, s.own, self(), distance}
-    %{s|phase: s.phase + 1}
+  msgs %{status: :idle, ring: ring, phase: phase}=s do
+    distance = trunc(:math.pow(2, phase))
+    message = %{
+      notation: nil,
+      value: s.own,
+      origin: distance,
+      distance: distance-1,
+      type: :init,
+    }
+
+    send self(), :waiting
+    send_msg ring, %{message | notation: :prev}
+    send_msg ring, %{message | notation: :next}
+  end
+
+  msgs _ do
+    nil
   end
 
 
@@ -41,24 +52,68 @@ defmodule HS do
   ## -----------------------------------------------------------------
 
   trans [
-    msg: {_, _, _, _}=msg,
-    state: s, 
-    do: (
-      Counter.add_one()
-      compare(s, msg)
-    )
+    msg: :waiting,
+    state: s,
+    do: %{s|status: :waiting}
   ]
 
   trans [
-    msg: :stop,
+    msg: %{type: :stop, distance: n, origin: n},
     state: s,
     do: %{s|status: :defeated}
   ]
 
   trans [
-    msg: :ok,
+    msg: %{type: :stop, distance: d}=m,
     state: s,
-    do: s
+    do: (
+      m1 = %{m|distance: d + 1}
+      prepare_send s, m1
+    )
+  ]
+
+  trans [
+    msg: %{type: :ok, distance: n, origin: n},
+    state: s,
+    do: (
+      case s.status do
+        :waiting -> %{s|phase: s.phase + 1, status: :idle}
+        _ -> s
+      end
+    )
+  ]
+
+  trans [
+    msg: %{type: :ok, distance: d}=m,
+    state: s,
+    do: (
+      m1 = %{m|distance: d + 1}
+      prepare_send s, m1
+    )
+  ]
+
+  trans [
+    msg: %{type: :init, value: v, distance: d}=m,
+    state: %{own: own}=s,
+    do: (
+      case compare(own, v) do
+        :gt ->
+          m1 = reverse %{m|type: :stop, distance: d + 1}
+          prepare_send s, m1
+        
+        :lt ->
+          m1 =
+            if d == 0 do
+              reverse %{m|type: :ok, distance: 1}
+            else
+              %{m|distance: d - 1}
+            end
+          %{s|status: :defeated} |> prepare_send(m1)
+        
+        :eq ->
+          %{s|status: :chosen}
+      end
+    )
   ]
 
 
@@ -66,24 +121,15 @@ defmodule HS do
   ## private functions
   ## -----------------------------------------------------------------
 
-  defp compare(%{own: own}=s, {_d, v, pid, 0}) when v > own do
-    send pid, :ok
-    %{s|status: :defeated}
-  end
-  defp compare(%{own: own}=s, {d, v, pid, distance}) when v > own do
-    case d do
-      :next ->
-        send Ring.next_node(s.ring), {:next, v, pid, distance-1}
-      :prev ->
-        send Ring.prev_node(s.ring), {:prev, v, pid, distance-1}
+
+  defp compare(a, b) do
+    case a-b do
+      0 -> :eq
+      x when x>0 -> :gt
+      _ -> :lt
     end
-    %{s|status: :defeated}
   end
-  defp compare(%{own: own}=s, {_, v, pid, _}) when v < own do
-    send pid, :stop
-    s
-  end
-  defp compare(%{own: own}=s, {_, own, _, _}) do
-    %{s|status: :chosen}
-  end
+
+  defp prepare_send(s, msg), do: %{s|send: [msg|s.send]}
+
 end

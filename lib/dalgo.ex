@@ -4,15 +4,12 @@ defmodule Dalgo do
   """
 
   @doc """
-  Hello world.
+  Start an ring algorithm with a number of nodes.
 
-  ## Examples
-
-      iex> Dalgo.hello
-      :world
-
+    LCR: Lelann, Chang-Roberts algorithm.
+    HS: Hirshberg Sinclair algorithm.
   """
-  def hello do
-    :world
+  def ring(algo, node) do
+    Ring.start algo, node
   end
 end

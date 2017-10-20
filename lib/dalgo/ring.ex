@@ -1,7 +1,6 @@
 defmodule Ring do
 
   alias Ring.Supervisor, as: RingSup
-  alias Ring.Counter
   alias Ring.Manager
     
   def fit_ring(ring, pid) do
@@ -19,7 +18,6 @@ defmodule Ring do
   end
 
   def start(node_mod, node_num) do
-    Counter.reset()
     RingSup.start_link(node_mod)
     Manager.election(node_num)
   end

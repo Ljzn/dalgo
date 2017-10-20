@@ -2,7 +2,7 @@ defmodule HS do
   @moduledoc """
   Hirshberg Sinclair algorithm.
   """
-  use Ring.Algo
+  use Ring.Builder
 
   ## -----------------------------------------------------------------
   ## START
@@ -17,8 +17,7 @@ defmodule HS do
   ## -----------------------------------------------------------------
 
   msgs %{status: :chosen, own: own} do
-    IO.puts "Node.#{own} has been chosen as leader."
-    Counter.report()
+    done own
   end
 
 
@@ -129,7 +128,5 @@ defmodule HS do
       _ -> :lt
     end
   end
-
-  defp prepare_send(s, msg), do: %{s|send: [msg|s.send]}
 
 end

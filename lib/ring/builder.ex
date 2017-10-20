@@ -1,4 +1,4 @@
-defmodule Ring.Algo do
+defmodule Ring.Builder do
   @moduledoc """
   Ring Algorithm builder.
 
@@ -13,9 +13,10 @@ defmodule Ring.Algo do
   defmacro __using__(_) do
     quote do
       use GenServer
-      import Ring.Algo
+      import Ring.Builder
       alias Ring.Supervisor, as: RingSup
-      alias Ring.Counter
+      alias Ring.Msg
+      alias Ring.Manager
     
       def child_spec(n) do
         %{
@@ -37,12 +38,12 @@ defmodule Ring.Algo do
       def send_msg(ring, %{notation: :next}=m) do
         send Ring.next_node(ring), m
         # IO.inspect m
-        Counter.add_one()
+        Manager.count_msg()
       end
       def send_msg(ring, %{notation: :prev}=m) do
         send Ring.prev_node(ring), m
         # IO.inspect m
-        Counter.add_one()
+        Manager.count_msg()
       end
 
       def reverse(%{notation: :next}=m), do: %{m|notation: :prev}
@@ -51,7 +52,10 @@ defmodule Ring.Algo do
       defp send_all_msg(%{ring: ring, send: send}) when is_list(send) do
         send |> Enum.each(&send_msg(ring, &1))
       end
-      defp send_all_msg(_), do: nil
+
+      defp prepare_send(s, msg), do: %{s|send: [msg|s.send]}
+      
+      defp done(own), do: send Manager, {:done, own}
     end
   end
 
@@ -65,10 +69,9 @@ defmodule Ring.Algo do
 
   defmacro msgs(state, [do: body]) do
     quote do
-      def handle_info({:round_go, var!(r!)}, s=unquote(state)) do
-        var!(r!)
-        send_all_msg(s)
+      def handle_info(:round_go, s=unquote(state)) do
         unquote(body)
+        send_all_msg s
         {:noreply, %{s| send: []} }
       end
     end

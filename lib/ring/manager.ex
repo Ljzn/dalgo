@@ -16,6 +16,13 @@ defmodule Ring.Manager do
     GenServer.cast __MODULE__, {:election, n}
   end
 
+  @doc """
+  Count the all messages passed.
+  """
+  def count_msg do
+    GenServer.cast __MODULE__, :count_msg
+  end
+
   def start_link(_) do
     GenServer.start_link __MODULE__, :ok, name: __MODULE__
   end
@@ -25,7 +32,7 @@ defmodule Ring.Manager do
   ## -----------------------------------------------------------------
 
   def init(_) do
-    {:ok, %{round: 0, ring: nil}}
+    {:ok, %{round: 0, ring: nil, msgs: 0}}
   end
 
   def handle_cast({:election, n}, s) do
@@ -37,20 +44,27 @@ defmodule Ring.Manager do
     {:noreply, %{s|ring: ring}}
   end
 
-  def handle_info(:new_round, %{ring: ring, round: round}) do
+  def handle_cast(:count_msg, s) do
+    {:noreply, %{s|msgs: s.msgs + 1}}
+  end
+
+  def handle_info(:new_round, %{ring: ring, round: round}=s) do
     new_round = round + 1
     for node <- ring do
-      send node, {:round_go, new_round}
+      send node, :round_go
     end
-    Process.send_after self(), :new_round, 0
+    Process.send_after self(), :new_round, 10
 
-    {:noreply, %{ring: ring, round: new_round}}
+    {:noreply, %{s|round: new_round} }
   end
 
-  def handle_info(:done, %{round: round}) do
-    IO.puts "[ROUND] #{round}"
+  def handle_info({:done, n}, %{round: round, msgs: msgs}) do
+    IO.puts "[LEADER] #{n} [ROUND] #{round} [MESSAGE] #{msgs}"
+    Supervisor.stop Ring.Supervisor
     {:noreply, :done}
   end
+
+  def handle_info(_, :done), do: {:noreply, :done}
 
   ## -----------------------------------------------------------------
   ## HELPER

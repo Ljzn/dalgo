@@ -15,7 +15,6 @@ defmodule Ring.Builder do
       use GenServer
       import Ring.Builder
       alias Ring.Supervisor, as: RingSup
-      alias Ring.Msg
       alias Ring.Manager
     
       def child_spec(n) do
@@ -32,22 +31,22 @@ defmodule Ring.Builder do
 
       def handle_info({:ring, ring}, state) do
         new_ring = Ring.fit_ring(ring, self())
-        {:noreply, %{state|ring: new_ring}}
+        {:noreply, Map.put(state, :ring, new_ring)}
       end
 
-      def send_msg(ring, %{notation: :next}=m) do
-        send Ring.next_node(ring), m
-        # IO.inspect m
-        Manager.count_msg()
-      end
-      def send_msg(ring, %{notation: :prev}=m) do
+      def send_msg(ring, %{to: :prev}=m) do
         send Ring.prev_node(ring), m
         # IO.inspect m
         Manager.count_msg()
       end
+      def send_msg(ring, m) do
+        send Ring.next_node(ring), m
+        # IO.inspect m
+        Manager.count_msg()
+      end
 
-      def reverse(%{notation: :next}=m), do: %{m|notation: :prev}
-      def reverse(%{notation: :prev}=m), do: %{m|notation: :next}
+      def reverse(%{to: :next}=m), do: %{m|to: :prev}
+      def reverse(%{to: :prev}=m), do: %{m|to: :next}
 
       defp send_all_msg(%{ring: ring, send: send}) when is_list(send) do
         send |> Enum.each(&send_msg(ring, &1))
@@ -71,6 +70,7 @@ defmodule Ring.Builder do
     quote do
       def handle_info(:round_go, s=unquote(state)) do
         unquote(body)
+        # IO.inspect s
         send_all_msg s
         {:noreply, %{s| send: []} }
       end

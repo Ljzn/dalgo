@@ -17,10 +17,15 @@ defmodule Ring do
     Enum.at ring, dist
   end
 
+  @doc """
+  Start an ring algorithm with a number of nodes.
+
+    LCR: Lelann, Chang-Roberts algorithm.
+    HS: Hirshberg Sinclair algorithm.
+  """
   def start(node_mod, node_num) do
     RingSup.start_link(node_mod)
     Manager.election(node_num)
   end
-
 
 end

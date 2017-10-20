@@ -1,6 +1,6 @@
 # Dalgo
 
-Some helper macros to write algorithm in then book "Distributed Algorithm".
+Some helper macros to write algorithm in "Distributed Algorithm" book.
 
 ## 1. Leader Election on a Ring
 
@@ -9,11 +9,14 @@ Some helper macros to write algorithm in then book "Distributed Algorithm".
 ### Lelann, Chang-Roberts
 
 ```elixir
-iex> Ring.start LCR, 5  # num of nodes
+iex> Ring.start LCR, 100  # num of nodes
+[LEADER] 100 [ROUND] 101 [MESSAGE] 548
 ```
 
 ### Hirsheberg Sinclair
 
 ```elixir
-iex> Ring.start HS, 10
+iex> Ring.start HS, 100
+[LEADER] 100 [ROUND] 226 [MESSAGE] 2621
 ```
+

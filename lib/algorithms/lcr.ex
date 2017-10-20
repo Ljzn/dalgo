@@ -9,7 +9,7 @@ defmodule LCR do
   ## -----------------------------------------------------------------
 
   start n do
-    %{ring: nil, own: n, send: [%Msg{data: n}], status: :unknown}
+    %{own: n, send: [%{data: n}], status: :unknown}
   end
 
   ## -----------------------------------------------------------------
@@ -29,7 +29,7 @@ defmodule LCR do
   ## -----------------------------------------------------------------
 
   trans [
-    msg: %Msg{data: m},
+    msg: %{data: m},
     state: s,
     do: (
       handle(m, s)
@@ -44,7 +44,11 @@ defmodule LCR do
     state |> compare_own_with_m(m)
   end
 
-  defp compare_own_with_m(%{own: own}=s, m) when m > own, do: prepare_send(s, %Msg{data: m})
-  defp compare_own_with_m(%{own: m}=s, m), do: %{s|status: :chosen, send: []}
+  defp compare_own_with_m(%{own: own}=s, m) when m > own do
+    prepare_send(s, %{data: m})
+  end
+  defp compare_own_with_m(%{own: m}=s, m) do
+    %{s|status: :chosen}
+  end
   defp compare_own_with_m(s, _), do: s
 end

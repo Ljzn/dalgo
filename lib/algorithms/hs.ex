@@ -9,7 +9,12 @@ defmodule HS do
   ## -----------------------------------------------------------------
 
   start n do
-    %{ring: nil, own: n, status: :idle, send: [], phase: 0}
+    %{
+      send: [],
+      own: n, 
+      phase: 0, 
+      status: :unknown
+    } |> prepare_new_phase_msgs()
   end
 
   ## -----------------------------------------------------------------
@@ -18,27 +23,6 @@ defmodule HS do
 
   msgs %{status: :chosen, own: own} do
     done own
-  end
-
-
-  msgs %{status: :defeated} do
-    nil
-  end
-
-
-  msgs %{status: :idle, ring: ring, phase: phase}=s do
-    distance = trunc(:math.pow(2, phase))
-    message = %{
-      notation: nil,
-      value: s.own,
-      origin: distance,
-      distance: distance-1,
-      type: :init,
-    }
-
-    send self(), :waiting
-    send_msg ring, %{message | notation: :prev}
-    send_msg ring, %{message | notation: :next}
   end
 
   msgs _ do
@@ -50,14 +34,9 @@ defmodule HS do
   ## TRANS
   ## -----------------------------------------------------------------
 
-  trans [
-    msg: :waiting,
-    state: s,
-    do: %{s|status: :waiting}
-  ]
 
   trans [
-    msg: %{type: :stop, distance: n, origin: n},
+    msg: %{type: :stop, distance: n, origin: n },
     state: s,
     do: %{s|status: :defeated}
   ]
@@ -72,11 +51,16 @@ defmodule HS do
   ]
 
   trans [
-    msg: %{type: :ok, distance: n, origin: n},
+    msg: %{type: :ok, distance: n, origin: n, phase: p},
     state: s,
     do: (
       case s.status do
-        :waiting -> %{s|phase: s.phase + 1, status: :idle}
+        :unknown -> 
+          if p == s.phase do
+            %{s|phase: p + 1} |> prepare_new_phase_msgs()
+          else
+            s
+          end
         _ -> s
       end
     )
@@ -120,6 +104,20 @@ defmodule HS do
   ## private functions
   ## -----------------------------------------------------------------
 
+  defp prepare_new_phase_msgs(%{own: n, phase: phase}=s) do
+    distance = trunc(:math.pow(2, phase))
+    data = %{
+      value: n,
+      origin: distance,
+      distance: distance-1,
+      phase: phase,
+      type: :init,
+    }
+
+    s
+    |> prepare_send(Map.put(data, :to, :next))
+    |> prepare_send(Map.put(data, :to, :prev))
+  end
 
   defp compare(a, b) do
     case a-b do

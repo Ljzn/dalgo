@@ -4,6 +4,7 @@ defmodule Ring.Manager do
   """
   use GenServer
   alias Ring.Node.Supervisor, as: NodeSup
+  @round_interval Application.get_env :dalgo, :round_interval
 
   ## -----------------------------------------------------------------
   ## API
@@ -39,7 +40,7 @@ defmodule Ring.Manager do
     start_nodes(n)
     ring = get_ring()
     update_nodes_ring(ring)
-    
+    IO.inspect [ring, "election started"]
     send self(), :new_round
     {:noreply, %{s|ring: ring}}
   end
@@ -53,7 +54,7 @@ defmodule Ring.Manager do
     for node <- ring do
       send node, :round_go
     end
-    Process.send_after self(), :new_round, 10
+    Process.send_after self(), :new_round, @round_interval
 
     {:noreply, %{s|round: new_round} }
   end
@@ -81,6 +82,8 @@ defmodule Ring.Manager do
     |> Supervisor.which_children()
     |> Enum.map(fn {_, pid, _, _} -> pid end)
     |> Enum.shuffle()
+    # |> Enum.sort()
+    # |> Enum.reverse() # worst case of LCR
   end
 
   defp update_nodes_ring(ring) do
